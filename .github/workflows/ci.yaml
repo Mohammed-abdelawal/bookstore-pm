@@ -1,0 +1,56 @@
+name: Build and Test
+run-name: "Pipeline for: ${{ github.event.head_commit.message }}"
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: "bookstore_db"
+          POSTGRES_USER: "postgres"
+          POSTGRES_PASSWORD: "passw0rd"
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Python dependencies if there's no cache
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Config env
+        run: |
+          cp .env.example .env
+
+          # Set database vars to the the PostgreSQL service
+          echo "DATABASE_HOST=localhost" >> .env
+          echo "POSTGRES_DB=bookstore_db" >> .env
+          echo "POSTGRES_USER=postgres" >> .env
+          echo "POSTGRES_PASSWORD=passw0rd" >> .env
+
+      - name: Check & Run Django Migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Django Check
+        run: python manage.py check
+
+      - name: Flake8 linting
+        run: flake8 .
+
+      - name: run Tests
+        run: python manage.py test

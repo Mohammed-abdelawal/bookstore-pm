@@ -1,6 +1,10 @@
 from rest_framework import generics
 from .serializers import RegisterSerializer, BookSerializer, ReviewSerializer
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticatedOrReadOnly,
+    IsAuthenticated,
+)
 from django.contrib.auth import get_user_model
 from rest_framework import viewsets
 from .models import Book, Review
