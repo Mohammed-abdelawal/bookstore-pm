@@ -9,7 +9,7 @@ class RegisterAuthTests(APITestCase):
     def test_register_user(self):
         url = reverse("register")
         data = {
-            "username": "Abdelawaal",
+            "username": "Abdelawal",
             "email": "abd.elawal@example.com",
             "password": "testpassw0rd",
         }
