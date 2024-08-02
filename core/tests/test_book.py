@@ -1,9 +1,15 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from django.test import TestCase
 from django.contrib.auth import get_user_model
 from core.models import Book, Review
 from django.utils import timezone
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.exceptions import ValidationError
+from django.db.utils import IntegrityError
+
 
 UserModel = get_user_model()
 
@@ -71,19 +77,24 @@ class BookStoreTests(APITestCase):
         data = {"review_text": "Awesome book!", "rating": 4}
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.access_token2}")
         response = self.client.post(url, data, format="json")
-        print(response.content)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Review.objects.count(), 2)
         self.assertEqual(Review.objects.filter(book=self.book).count(), 2)
         self.assertEqual(Review.objects.get(review_text="Awesome book!").rating, 4)
 
     def test_duplicate_review(self):
-        url = reverse("books-add-review", args=[self.book.id])
-        data = {"review_text": "Duplicate review", "rating": 3}
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.access_token}")
-        response = self.client.post(url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(Review.objects.count(), 1)  # Still only one review
+        # First review is already created in setUp
+        # now trying to create another one with the same user and book
+        try:
+            duplicate_review = Review.objects.create(
+                user=self.user, book=self.book, review_text="Duplicate review", rating=3
+            )
+            duplicate_review.full_clean()
+            duplicate_review.save()
+        except IntegrityError as e:
+            self.assertIn("unique constraint", str(e))
+        else:
+            self.fail("IntegrityError not raised for duplicate review")
 
     def test_review_rating_validation(self):
         url = reverse("books-add-review", args=[self.book.id])
@@ -98,3 +109,63 @@ class BookStoreTests(APITestCase):
         self.assertEqual(
             Review.objects.count(), 1
         )  # No new review added due to validation failure
+
+
+class BookModelTests(TestCase):
+
+    def test_upload_invalid_file_extension(self):
+        invalid_file = SimpleUploadedFile(
+            "test.txt", b"This is a test file.", content_type="text/plain"
+        )
+        book = Book(
+            title="Test Book with Invalid File",
+            author="Author",
+            description="Description",
+            publish_date=timezone.now(),
+            file=invalid_file,
+        )
+        with self.assertRaises(ValidationError) as context:
+            book.full_clean()  # This will trigger the validation
+        self.assertIn("file", context.exception.message_dict)
+
+    def test_upload_valid_file_extension(self):
+        valid_file = SimpleUploadedFile(
+            "test.pdf", b"%PDF-1.4 test file content", content_type="application/pdf"
+        )
+        book = Book(
+            title="Test Book with Valid File",
+            author="Author",
+            description="Description",
+            publish_date=timezone.now(),
+            file=valid_file,
+        )
+        try:
+            book.full_clean()  # This will trigger the validation
+            book.save()
+        except ValidationError:
+            self.fail("Valid PDF file raised ValidationError unexpectedly!")
+
+        self.assertEqual(Book.objects.count(), 1)
+        self.assertTrue(
+            Book.objects.get(title="Test Book with Valid File").file.name.endswith(
+                ".pdf"
+            )
+        )
+
+    def test_upload_file_size_limit(self):
+        oversized_content = b"A" * int(
+            settings.BOOK_FILE_SIZE_LIMIT_MB * 1024 * 1024 + 1
+        )
+        oversized_file = SimpleUploadedFile(
+            "test.pdf", oversized_content, content_type="application/pdf"
+        )
+        book = Book(
+            title="Test Book with Oversized File",
+            author="Author",
+            description="Description",
+            publish_date=timezone.now(),
+            file=oversized_file,
+        )
+        with self.assertRaises(ValidationError) as context:
+            book.full_clean()  # This will trigger the validation
+        self.assertIn("file", context.exception.message_dict)

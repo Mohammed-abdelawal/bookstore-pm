@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MaxValueValidator, MinValueValidator
+from core.validators import validate_file_extension, validate_file_size
 
 UserModel = get_user_model()
 
@@ -9,7 +10,12 @@ class Book(models.Model):
     title = models.CharField(max_length=255)
     author = models.CharField(max_length=255)
     description = models.TextField()
-    file = models.FileField(upload_to="books/", null=True, blank=True)
+    file = models.FileField(
+        upload_to="books/",
+        null=True,
+        blank=True,
+        validators=[validate_file_extension, validate_file_size],
+    )
     publish_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -17,8 +23,8 @@ class Book(models.Model):
         return self.title
 
     class Meta:
-        verbose_name = "Review"
-        verbose_name_plural = "Reviews"
+        verbose_name = "Book"
+        verbose_name_plural = "Books"
 
 
 class Review(models.Model):

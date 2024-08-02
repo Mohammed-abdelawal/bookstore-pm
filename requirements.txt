@@ -7,3 +7,4 @@ python-dotenv
 psycopg2-binary
 factory_boy
 python-dotenv
+drf-yasg

@@ -24,7 +24,9 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
-        fields = "__all__"
+        exclude = [
+            "book",
+        ]
 
 
 class BookSerializer(serializers.ModelSerializer):
